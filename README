@@ -1,6 +1,6 @@
-README spmm-puzzle
+README spmm-puzzle (REVISIONED)
 Albert Zaharovits albert.zaharovits@gmail.com
-23.4.2013
+24.4.2013
 
 	The kernel is build using the guidelines from nvidia cuda reduce documentation[1].
 	The main optimization concerns are:
@@ -14,10 +14,7 @@ Albert Zaharovits albert.zaharovits@gmail.com
 
 	The algorithm copies parts of the array from global memory to shared memory.
 	Each such part is reduced by a workgroup in shared memory, then it is placed
-	in a __global buffer(__global char *g_odata). After this stage there will be
-	get_num_groups(0) values that still have to be reduced. They will be taken
-	care of in the next steps of the kernel. 
-		Subsequent steps repeat the previous scheme.
+	in a __global buffer(__global char *g_odata). After 		Subsequent steps repeat the previous scheme.
 
 	IMPORTANT NOTE: viennacl::ocl::kernel.global_work_size(0, 128) sets the number 
 			of TOTAL THREADS to 128, as oposed to setting the number of work 

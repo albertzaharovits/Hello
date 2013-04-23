@@ -1,6 +1,6 @@
-/* CHAR REDUCE KERNEL
+/* CHAR REDUCE KERNEL (REVISIONED)
  * openCL Nvidia implementation
- * 21.4.2013
+ * 24.4.2013
  * based on: 
  *	http://www.drdobbs.com/parallel/a-gentle-introduction-to-opencl/231002854?pgno=1
  *	http://developer.download.nvidia.com/assets/cuda/files/reduction.pdf
@@ -48,11 +48,8 @@ void warpReduce(__local char *d_data, uint localIdx, uint groupDim)
  *
  * Features:
  *	 - there is no restriction on input data length
- * 	 - one group reduces 2 * get_local_size(0) elements
  * Restrictions:
- *	- number_of_groups * group_dim * 2 > input_data_size
- *	  [ get_num_groups(0) * get_local_size(0) * 2 > size ]
- *	- number_of_groups <= size_of g_odata
+ *	- size_of g_odata >= num_groups
  *	- size_of d_data >= group_dim
  *
  * Result is placed on g_odata[0]
@@ -67,14 +64,18 @@ find_highest_ascii(__global const char *g_idata, const uint size,
 	uint groupDim = get_local_size(0);
 	uint groupIdx = get_group_id(0);
 	uint globalDim = get_num_groups(0);
-	uint globalIdx = localIdx + groupIdx * (2*groupDim);
+	// each thread will process stride elements (stride fitted to input size)
+	uint stride = (size + get_global_size(0)-1)/get_global_size(0);
+	uint globalIdx = localIdx + groupIdx * (stride*groupDim);
 	uint count = size;
 
-	local_max = SAFE_LOAD_GLOBAL(g_idata, globalIdx, count);
-	globalIdx += groupDim;
-	local_max = operator((char)local_max, 
-			(char)(SAFE_LOAD_GLOBAL(g_idata, globalIdx, count)));
-
+	for(uint s=0;s<stride;s++)
+	{
+		local_max = operator((char)local_max, 
+				(char)(SAFE_LOAD_GLOBAL(g_idata, globalIdx, count)));
+		globalIdx += groupDim;
+	}
+		
 	d_data[localIdx] = local_max;
 
 	barrier(CLK_LOCAL_MEM_FENCE);
@@ -92,41 +93,33 @@ find_highest_ascii(__global const char *g_idata, const uint size,
 
 	if(localIdx == 0)
 		g_odata[groupIdx] = d_data[0];
+		
+	barrier(CLK_GLOBAL_MEM_FENCE);
 
-	// first reduction step over. Do some more if necessary (num workgroups > 1)
-
-	while(globalDim > 1)
+	// last work-group reduces per work-group results
+	if(groupIdx == 0)
 	{
-		barrier(CLK_GLOBAL_MEM_FENCE);
-
-		count = globalDim;
-		globalDim = globalDim/(groupDim*2) + 1;
-
-		if(groupIdx < globalDim)
+		d_data[localIdx] = SAFE_LOAD_GLOBAL(g_odata, localIdx, globalDim);
+		for(uint s = groupDim;s<globalDim;s+=groupDim)
 		{
-			globalIdx = localIdx + groupIdx * (2*groupDim);
-			local_max = SAFE_LOAD_GLOBAL(g_odata, globalIdx, count);
-			globalIdx += groupDim;
-			local_max = operator((char)local_max, 
-					(char)(SAFE_LOAD_GLOBAL(g_odata, globalIdx, count)));
+			d_data[localIdx] = operator(d_data[localIdx],
+								SAFE_LOAD_GLOBAL(g_odata, localIdx+s, globalDim));
+			barrier(CLK_LOCAL_MEM_FENCE);
+		}
 
-			d_data[localIdx] = local_max;
+		for(uint s = groupDim >> 1;s>32;s>>=1)
+		{
+			if(localIdx < s)
+				d_data[localIdx] = operator(d_data[localIdx],d_data[localIdx+s]);
 
 			barrier(CLK_LOCAL_MEM_FENCE);
-
-			for(uint s = groupDim >> 1;s>32;s>>=1)
-			{
-				if(localIdx < s)
-					d_data[localIdx] = operator(d_data[localIdx],d_data[localIdx+s]);
-
-				barrier(CLK_LOCAL_MEM_FENCE);
-			}
-			
-			// warp/wavefront synchronous 
-			warpReduce(d_data, localIdx, groupDim);
-
-			if(localIdx == 0)
-				g_odata[groupIdx] = d_data[0];
 		}
+		
+		// warp/wavefront synchronous 
+		warpReduce(d_data, localIdx, groupDim);
+
+		if(localIdx == 0)
+			g_odata[0] = d_data[0];
 	}
+
 }

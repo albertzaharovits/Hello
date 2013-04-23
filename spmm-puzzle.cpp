@@ -78,11 +78,6 @@ int main(int argc, char **argv)
   for (cl_uint i=0; i<size; ++i)
     host_input[i] = 'A' + i % 20;
 
-	if(size >= 257)
-	{
-		host_input[255] = 'Y';
-		host_input[256] = 'Z';
-	}
   //
   // Create OpenCL raw buffers:
   //
@@ -123,6 +118,7 @@ int main(int argc, char **argv)
 	// result buffer is used for work groups to communicate
   viennacl::backend::memory_create(result_buffer, 128);
 	viennacl::ocl::local_mem d_data(64);
+
   viennacl::ocl::enqueue( my_ascii_kernel(char_buffer.opencl_handle(),
 			 size, d_data, result_buffer.opencl_handle()) );
 
