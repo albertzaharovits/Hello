@@ -63,7 +63,6 @@ find_highest_ascii(__global const char *g_idata, const uint size,
 	uint localIdx = get_local_id(0);
 	uint groupDim = get_local_size(0);
 	uint groupIdx = get_group_id(0);
-	uint globalDim = get_num_groups(0);
 	// each thread will process stride elements (stride fitted to input size)
 	uint stride = (size + get_global_size(0)-1)/get_global_size(0);
 	uint globalIdx = localIdx + groupIdx * (stride*groupDim);
@@ -87,10 +86,45 @@ find_highest_ascii(__global const char *g_idata, const uint size,
 
 		barrier(CLK_LOCAL_MEM_FENCE);
 	}
-	
-	// warp/wavefront synchronous 
 	warpReduce(d_data, localIdx, groupDim);
 
 	if(localIdx == 0)
 		g_odata[groupIdx] = d_data[0];
 }
+
+__kernel void
+find_highest_ascii2(__global const char *g_idata, const uint size,
+	__local char *d_data, __global char *g_odata)
+{	
+	char local_max = SCHAR_MIN;
+	uint localIdx = get_local_id(0);
+	uint groupDim = get_local_size(0);
+	uint groupIdx = get_group_id(0);
+	// each thread will process stride elements (stride fitted to input size)
+	uint stride = (size + get_global_size(0)-1)/get_global_size(0);
+	uint globalIdx = localIdx + groupIdx * (stride*groupDim);
+	uint count = size;
+
+	for(uint s=0;s<stride;s++)
+	{
+		local_max = operator((char)local_max, 
+				(char)(SAFE_LOAD_GLOBAL(g_idata, globalIdx, count)));
+		globalIdx += groupDim;
+	}
+		
+	d_data[localIdx] = local_max;
+
+	barrier(CLK_LOCAL_MEM_FENCE);
+	
+	for(uint s = groupDim >> 1;s>=1;s>>=1)
+	{
+		if(localIdx < s)
+			d_data[localIdx] = operator(d_data[localIdx],d_data[localIdx+s]);
+
+		barrier(CLK_LOCAL_MEM_FENCE);
+	}
+	
+	if(localIdx == 0)
+		g_odata[groupIdx] = d_data[0];
+}
+
