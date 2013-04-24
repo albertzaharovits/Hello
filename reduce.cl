@@ -94,32 +94,4 @@ find_highest_ascii(__global const char *g_idata, const uint size,
 	if(localIdx == 0)
 		g_odata[groupIdx] = d_data[0];
 		
-	barrier(CLK_GLOBAL_MEM_FENCE);
-
-	// last work-group reduces per work-group results
-	if(groupIdx == 0)
-	{
-		d_data[localIdx] = SAFE_LOAD_GLOBAL(g_odata, localIdx, globalDim);
-		for(uint s = groupDim;s<globalDim;s+=groupDim)
-		{
-			d_data[localIdx] = operator(d_data[localIdx],
-								SAFE_LOAD_GLOBAL(g_odata, localIdx+s, globalDim));
-			barrier(CLK_LOCAL_MEM_FENCE);
-		}
-
-		for(uint s = groupDim >> 1;s>32;s>>=1)
-		{
-			if(localIdx < s)
-				d_data[localIdx] = operator(d_data[localIdx],d_data[localIdx+s]);
-
-			barrier(CLK_LOCAL_MEM_FENCE);
-		}
-		
-		// warp/wavefront synchronous 
-		warpReduce(d_data, localIdx, groupDim);
-
-		if(localIdx == 0)
-			g_odata[0] = d_data[0];
-	}
-
 }

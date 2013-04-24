@@ -78,14 +78,18 @@ int main(int argc, char **argv)
   for (cl_uint i=0; i<size; ++i)
     host_input[i] = 'A' + i % 20;
 
+	if(size>=913)
+		host_input[912] = 'Z';
   //
   // Create OpenCL raw buffers:
   //
   viennacl::backend::mem_handle char_buffer;
   viennacl::backend::mem_handle result_buffer;
+  viennacl::backend::mem_handle temp_buffer;
 
 	//initialize char_buffer with data from 'host_input'
   viennacl::backend::memory_create(char_buffer, size, &(host_input[0])); 
+  viennacl::backend::memory_create(result_buffer, 1);
 
   //
   // Set up the OpenCL program given in my_compute_kernel:
@@ -97,7 +101,6 @@ int main(int argc, char **argv)
 		perror("Reading file");
 		exit(1);
 	}
-	//printf("\n\n-------\n%s\n\n", my_compute_program);
 
   std::cout << "Compiling OpenCL program..." << std::endl;
   viennacl::ocl::program & my_prog = viennacl::ocl::current_context().add_program(my_compute_program, PROGRAM_FILE);
@@ -107,7 +110,6 @@ int main(int argc, char **argv)
   // After all kernels are registered, we can get the kernels from the program 'my_program'.
   //
   viennacl::ocl::kernel & my_ascii_kernel = my_prog.get_kernel(KERNEL_FUNC);
-  
 
   //
   // Launch the kernel with 128 work groups, each with 64 threads
@@ -116,13 +118,21 @@ int main(int argc, char **argv)
   my_ascii_kernel.local_work_size(0, 64);
   my_ascii_kernel.global_work_size(0, 128);
 	// result buffer is used for work groups to communicate
-  viennacl::backend::memory_create(result_buffer, 128);
+  viennacl::backend::memory_create(temp_buffer, 128/64);
 	viennacl::ocl::local_mem d_data(64);
 
   viennacl::ocl::enqueue( my_ascii_kernel(char_buffer.opencl_handle(),
-			 size, d_data, result_buffer.opencl_handle()) );
+			 size, d_data, temp_buffer.opencl_handle()) );
 
-  //
+	// enqueue second kernel to get the final result
+  my_ascii_kernel.local_work_size(0, 2);
+  my_ascii_kernel.global_work_size(0, 2);
+	 
+	size = 2;
+  viennacl::ocl::enqueue( my_ascii_kernel(temp_buffer.opencl_handle(),
+		 size, d_data, result_buffer.opencl_handle()) );
+	 
+
   // Print the result:
   //
   char result_char = 'a';
