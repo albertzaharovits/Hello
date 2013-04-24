@@ -4,6 +4,7 @@
 #include <iostream>
 #include <string>
 #include <iterator>
+#include <sys/time.h>
 
 //
 // Activate OpenCL backend
@@ -18,6 +19,8 @@
 //
 #define VIENNACL_DEBUG_BUILD
 
+#define GET_TIME_DELTA(t1, t2) ((t2).tv_sec - (t1).tv_sec + \
+			((t2).tv_usec - (t1).tv_usec) / 1000000.0)
 
 //
 // ViennaCL includes
@@ -26,7 +29,6 @@
 #include "viennacl/backend/memory.hpp"
 #include "viennacl/ocl/local_mem.hpp"
 
-//
 // Define the OpenCL compute program.
 // Modify this program such that it returns the character with the highest ASCII code.
 // The current kernel is for demonstration purposes only and happens to work only for the sample input.
@@ -65,6 +67,7 @@ char* read_file(const char* filename)
 int main(int argc, char **argv)
 {
   cl_uint size = 1024;
+	struct timeval t1, t2;
 
   // parse command line parameter
   if (argc > 1)
@@ -78,8 +81,6 @@ int main(int argc, char **argv)
   for (cl_uint i=0; i<size; ++i)
     host_input[i] = 'A' + i % 20;
 
-	if(size>=913)
-		host_input[912] = 'Z';
   //
   // Create OpenCL raw buffers:
   //
@@ -133,13 +134,13 @@ int main(int argc, char **argv)
 		 size, d_data, result_buffer.opencl_handle()) );
 	 
 
-  // Print the result:
+  
   //
   char result_char = 'a';
   viennacl::backend::memory_read(result_buffer, 0, 1, &result_char);
   std::cout << "Character with highest ASCII code in sequence: " << result_char << std::endl;
 
-  // std::cout << "Input sequence: " << std::endl;
+  
   // std::copy(host_input.begin(), host_input.end(), std::ostream_iterator<char>(std::cout, " ")); std::cout << std::endl;
   
   return EXIT_SUCCESS;

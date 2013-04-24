@@ -93,5 +93,4 @@ find_highest_ascii(__global const char *g_idata, const uint size,
 
 	if(localIdx == 0)
 		g_odata[groupIdx] = d_data[0];
-		
 }
