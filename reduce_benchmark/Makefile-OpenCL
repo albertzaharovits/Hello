@@ -1,4 +1,4 @@
-PROJ=spmm-puzzle
+PROJ=reduce-char-opencl
 
 CC=gcc
 
@@ -53,9 +53,9 @@ endif
 endif
 
 $(PROJ): $(PROJ).cpp reduce.cl
-	$(CC) $(CFLAGS) -o spmm_puzzle_benchmark $< $(INC_DIRS:%=-I%) $(LIB_DIRS:%=-L%) $(LIBS)
+	$(CC) $(CFLAGS) -o $@ $< $(INC_DIRS:%=-I%) $(LIB_DIRS:%=-L%) $(LIBS)
 
 .PHONY: clean
 
 clean:
-	rm -f spmm_puzzle_benchmark
+	rm -f $(PROJ)
